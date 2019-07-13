@@ -20,11 +20,27 @@ class DatasetCatalog(object):
             "coco/val2014",
             "coco/annotations/instances_valminusminival2014.json",
         ),
+        "coco_2017_train": (
+            "coco/train2017",
+            "coco/annotations/instances_train2017.json",
+        ),
+        "coco_2017_val": (
+            "coco/val2017",
+            "coco/annotations/instances_val2017.json",
+        ),
+        "ade20k_train": (
+            "ade20k/images",
+            "ade20k/annotations/instances_train.json",
+        ),
+        "ade20k_val": (
+            "ade20k/images",
+            "ade20k/annotations/instances_val.json",
+        ),
     }
 
     @staticmethod
     def get(name):
-        if "coco" in name:
+        if "coco" in name or "ade20k" in name:
             data_dir = DatasetCatalog.DATA_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
@@ -39,7 +55,7 @@ class DatasetCatalog(object):
 
 
 class ModelCatalog(object):
-    S3_C2_DETECTRON_URL = "https://s3-us-west-2.amazonaws.com/detectron"
+    S3_C2_DETECTRON_URL = "https://dl.fbaipublicfiles.com/detectron"
     C2_IMAGENET_MODELS = {
         "MSRA/R-50": "ImageNetPretrained/MSRA/R-50.pkl",
         "MSRA/R-101": "ImageNetPretrained/MSRA/R-101.pkl",

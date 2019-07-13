@@ -9,6 +9,22 @@ from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
 from maskrcnn_benchmark.modeling.utils import cat
 import numpy as np
 
+def compute_mask_ratio(segmentation_mask, proposal):
+    """
+    Compute area of segmentation mask and area of segmentation mask
+    cropped by the proposal. Return ratio of these two areas.
+    """
+    cropped_mask = segmentation_mask.crop(proposal)
+    full_area = segmentation_mask.area()
+    crop_area = cropped_mask.area()
+    assert len(full_area) == 1
+    assert len(crop_area) == 1
+
+    full_area = torch.tensor(full_area[0].astype(float))
+    crop_area = torch.tensor(crop_area[0].astype(float))
+    mask_ratio = crop_area / full_area
+    return mask_ratio
+
 def project_masks_on_boxes(segmentation_masks, proposals, discretization_size, maskiou_on):
     """
     Given segmentation masks and the bounding boxes corresponding
@@ -39,47 +55,17 @@ def project_masks_on_boxes(segmentation_masks, proposals, discretization_size, m
         # instead of the list representation that was used
         cropped_mask = segmentation_mask.crop(proposal)
         scaled_mask = cropped_mask.resize((M, M))
-        mask = scaled_mask.convert(mode="mask")
+        mask = scaled_mask.get_mask_tensor()
         masks.append(mask)
+
         if maskiou_on:
-            
-            x1 = int(proposal[0])
-            y1 = int(proposal[1])
-            x2 = int(proposal[2]) + 1
-            y2 = int(proposal[3]) + 1
-            for poly_ in segmentation_mask.polygons:
-                poly = np.array(poly_, dtype=np.float32)
-                x1 = np.minimum(x1, poly[0::2].min())
-                x2 = np.maximum(x2, poly[0::2].max())
-                y1 = np.minimum(y1, poly[1::2].min())
-                y2 = np.maximum(y2, poly[1::2].max())
-            img_h = segmentation_mask.size[1]
-            img_w = segmentation_mask.size[0]
-            x1 = np.maximum(x1, 0)
-            x2 = np.minimum(x2, img_w-1)
-            y1 = np.maximum(y1, 0)
-            y2 = np.minimum(y2, img_h-1)
-            segmentation_mask_for_maskratio =  segmentation_mask.crop([x1, y1, x2, y2])
-            ''' 
-            #type 1
-            gt_img_mask = segmentation_mask_for_maskratio.convert(mode='mask')    
-            gt_img_mask_area = gt_img_mask.sum().float()
-            gt_box_mask = gt_img_mask[int(proposal[1]-y1):int(proposal[3]-y1)+1, int(proposal[0]-x1):int(proposal[2]-x1)+1]
-            gt_box_mask_area = gt_box_mask.sum().float()
-            mask_ratio = gt_box_mask_area / gt_img_mask_area
-            '''
-            #type 2
-            rle_for_fullarea = mask_util.frPyObjects([p.numpy() for p in segmentation_mask_for_maskratio.polygons], y2-y1, x2-x1)
-            full_area = torch.tensor(mask_util.area(rle_for_fullarea).sum().astype(float))
-            rle_for_box_area = mask_util.frPyObjects([p.numpy() for p in cropped_mask.polygons], proposal[3]-proposal[1], proposal[2]-proposal[0])
-            box_area = torch.tensor(mask_util.area(rle_for_box_area).sum().astype(float))
-            mask_ratio = box_area / full_area
-            
+            mask_ratio = compute_mask_ratio(segmentation_mask, proposal)        
             mask_ratios.append(mask_ratio)
     if maskiou_on:
         mask_ratios = torch.stack(mask_ratios, dim=0).to(device, dtype=torch.float32)
     else:
         mask_ratios = None
+
     if len(masks) == 0:
         return torch.empty(0, dtype=torch.float32, device=device), torch.empty(0, dtype=torch.float32, device=device)
     return torch.stack(masks, dim=0).to(device, dtype=torch.float32), mask_ratios
